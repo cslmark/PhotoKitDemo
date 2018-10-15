@@ -12,17 +12,17 @@
 
 @class QHPPhotoKitHelper;
 
-@protocol QHPPhotoKitIcloudQueryDelegate
+@protocol QHPPhotoKitIcloudQueryDelegate <NSObject>
 @optional
 -(void) qhpPhotoKitHelper:(QHPPhotoKitHelper *) helper querySet:(NSArray <NSString *>*) queryList icloudSet:(NSArray <NSString *>*) icloudList;
 @end
 
-@protocol QHPPhotoKitChangeDelegate
+@protocol QHPPhotoKitChangeDelegate <NSObject>
 @optional
 -(void) qhpPhotoKitHelper:(QHPPhotoKitHelper *) helper phChangeDetail:(PHFetchResultChangeDetails *)changes;
 @end
 
-@protocol QHPPhotoKitHelperDelegate
+@protocol QHPPhotoKitHelperDelegate <NSObject>
 @optional
 -(void) qhpPhotoKitHelper:(QHPPhotoKitHelper *) helper progressWithIdentifier:(NSString*) identifier progress:(double) progress info:(NSDictionary *) info;
 -(void) qhpPhotoKitHelper:(QHPPhotoKitHelper *) helper failWithIdentifier:(NSString*) identifier error:(NSError *) error info:(NSDictionary *) info;

@@ -15,21 +15,27 @@ typedef NS_ENUM(NSUInteger, PhotoKitChangsType) {
     PhotoKitTypeChange = 2,
 };
 
+#define QueryIcloudCache  0
+#define KVOOperationTest  0
+
 @interface QHPPhotoKitHelper()<PHPhotoLibraryChangeObserver>
 @property (nonatomic, strong) NSOperationQueue* queue;
 @property (nonatomic, strong) NSMutableDictionary* taskCache;
 @property (nonatomic, strong) PHImageManager* mediaManager;
 @property (nonatomic, strong) PHCachingImageManager* cacheImageManager;
-@property (nonatomic, strong) NSMutableDictionary* aVAssetCache;
 @property (nonatomic, strong) PHFetchResult<PHAssetCollection *> *smartAlbums;
 @property (nonatomic, strong, readwrite) PHFetchResult<PHAsset *> *videoFetchResult;
-@property (nonatomic, strong) dispatch_queue_t cacheQueue;
+//@property (nonatomic, strong) NSMutableDictionary* aVAssetCache;
 @property (nonatomic, strong) NSMutableDictionary<NSString *, UIImage *> *imageCache;
-@property (nonatomic, strong) dispatch_queue_t iCloudQueryQueue;
+@property (nonatomic, strong) NSMutableArray<PHAsset *>* waitTaskCache;
 @property (nonatomic,strong) NSMutableSet *icloudIdentifiers;
 @property (nonatomic,strong) NSMutableSet *icloudQueryedIdentifiers;
 @property (nonatomic,strong) NSMutableArray<NSString *>* queryIcloudList;
+@property (nonatomic, strong) dispatch_queue_t cacheQueue;
+@property (nonatomic, strong) dispatch_queue_t iCloudQueryQueue;
 @end
+
+const static NSInteger kMaxConcurrent = 3;
 
 @implementation QHPPhotoKitHelper
 static dispatch_once_t onceToken;
@@ -47,10 +53,10 @@ static QHPPhotoKitHelper* instance = nil;
 -(instancetype) init{
     if(self = [super init]) {
         _queue = [[NSOperationQueue alloc] init];
-        _queue.maxConcurrentOperationCount = 3;
+        _queue.maxConcurrentOperationCount = kMaxConcurrent;
         _taskCache = [[NSMutableDictionary alloc] init];
         _mediaManager = [PHImageManager defaultManager];
-        _aVAssetCache = [[NSMutableDictionary alloc] init];
+//        _aVAssetCache = [[NSMutableDictionary alloc] init];
         _cacheQueue = dispatch_queue_create("com.photokit.cachequeue", DISPATCH_QUEUE_SERIAL);
         _iCloudQueryQueue = dispatch_queue_create("com.photokit.icloudQueryqueue", DISPATCH_QUEUE_SERIAL);
         [[PHPhotoLibrary sharedPhotoLibrary] registerChangeObserver:self];
@@ -85,7 +91,7 @@ static QHPPhotoKitHelper* instance = nil;
     [[PHPhotoLibrary sharedPhotoLibrary] unregisterChangeObserver:self];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
     self.taskCache = nil;
-    self.aVAssetCache = nil;
+//    self.aVAssetCache = nil;
     self.mediaManager = nil;
     self.videoFetchResult = nil;
     self.smartAlbums = nil;
@@ -102,7 +108,7 @@ static QHPPhotoKitHelper* instance = nil;
         [operation cancelTask];
     }
     instance.taskCache = nil;
-    instance.aVAssetCache = nil;
+//    instance.aVAssetCache = nil;
     instance.mediaManager = nil;
     instance.videoFetchResult = nil;
     instance.smartAlbums = nil;
@@ -133,6 +139,13 @@ static QHPPhotoKitHelper* instance = nil;
         _queryIcloudList = [NSMutableArray arrayWithCapacity:1];
     }
     return _queryIcloudList;
+}
+
+-(NSMutableArray<PHAsset *> *)waitTaskCache{
+    if(_waitTaskCache == nil){
+        _waitTaskCache = [NSMutableArray arrayWithCapacity:1];
+    }
+    return _waitTaskCache;
 }
 
 #pragma mark - 通知部分处理
@@ -206,40 +219,7 @@ static QHPPhotoKitHelper* instance = nil;
         return;
     }
     
-    DECLARE_WEAK_SELF
-    QHPIcloudOperation* operation = [[QHPIcloudOperation alloc] initWithIdentifier:identifier phImageManager:_mediaManager asset:asset progressBlock:^(NSString *identifier, double progress, NSDictionary * _Nullable info) {
-//        NSLog(@"任务【%@】进度 =============>>>  %lf", identifier, progress);
-        DECLARE_STRONG_SELF
-        if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:progressWithIdentifier:progress:info:)]){
-            [strongSelf.delegate qhpPhotoKitHelper:strongSelf progressWithIdentifier:identifier progress:progress info:info];
-        }
-    } completeBlock:^(NSString *identifier, AVAsset * _Nullable aVAsset, AVAudioMix * _Nullable audioMix, NSDictionary * _Nullable info) {
-//        NSLog(@"任务【%@】完成 =============>>>", identifier);
-        DECLARE_STRONG_SELF
-        [strongSelf dealWithCompleteWithIdentifier:identifier avAsset:aVAsset];
-        if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:completeWithIdentifier:aVAsset:avAudioMix:info:)]){
-            [strongSelf.delegate qhpPhotoKitHelper:strongSelf completeWithIdentifier:identifier aVAsset:aVAsset avAudioMix:audioMix info:info];
-        }
-    } errorBlock:^(NSString *identifier, NSError * _Nullable error, NSDictionary *__nullable info) {
-//        NSLog(@"任务【%@】出错了 =============>>>  %@", identifier, error);
-        DECLARE_STRONG_SELF
-        [strongSelf dealWithErrorWithIdentifier:identifier];
-        if([error.domain isEqualToString:kIcloudOperationDomain] && (error.code == QHPIcloudOperationCancel)) {
-            if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:cancelWithIdentifier:error:)]){
-                [strongSelf.delegate qhpPhotoKitHelper:strongSelf cancelWithIdentifier:identifier error:error];
-            }
-        } else {
-            if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:failWithIdentifier:error:info:)]){
-                [strongSelf.delegate qhpPhotoKitHelper:strongSelf failWithIdentifier:identifier error:error info:info];
-            }
-        }
-    }];
-    [self taskCacheAddWithIdentifier:operation.identifier qhpIcoudOperation:operation];
-    [self.queue addOperation:operation];
-    
-//    [operation addObserver:self forKeyPath:@"cancelled" options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
-//    [operation addObserver:self forKeyPath:@"executing" options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
-//    [operation addObserver:self forKeyPath:@"finished" options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
+    [self addIcloudTask:asset];
 }
 
 -(void) cancelAVAssetForVideoWith:(NSString *) identifier{
@@ -336,30 +316,37 @@ static QHPPhotoKitHelper* instance = nil;
 -(void)queryIcloudAssetItemWithIdentifiers:(NSArray <NSString *>*)identifiers
 {
     dispatch_async(_iCloudQueryQueue, ^{
-//        if (self.icloudIdentifiers == nil) {
-//            self.icloudIdentifiers = [[NSMutableSet alloc] init];
-//        }
-//
-//        //这里已经查过的就不要再查了
-//        if (self.icloudQueryedIdentifiers == nil) {
-//            self.icloudQueryedIdentifiers = [[NSMutableSet alloc] init];
-//        }
+#if QueryIcloudCache
+        if (self.icloudIdentifiers == nil) {
+            self.icloudIdentifiers = [[NSMutableSet alloc] init];
+        }
+        
+        //这里已经查过的就不要再查了
+        if (self.icloudQueryedIdentifiers == nil) {
+            self.icloudQueryedIdentifiers = [[NSMutableSet alloc] init];
+        }
+#endif
         
         @autoreleasepool {
             NSMutableArray* icloudList = [[NSMutableArray alloc] init];
             for (NSInteger i=0; i<identifiers.count; i++) {
                 NSString *assetId = [identifiers objectAtIndex:i];
                 //这里已经查过的就不要再查了
-//                if ([self.icloudQueryedIdentifiers containsObject:assetId]) {
-//                    continue;
-//                }
+#if QueryIcloudCache
+                if ([self.icloudQueryedIdentifiers containsObject:assetId]) {
+                    continue;
+                }
+#endif
                 AVAsset *resultAsset = [self requestAVAssetWithLocalIdentifier:assetId];
                 if (resultAsset == nil) {
-//                    [self.icloudIdentifiers addObject:assetId];
+#if QueryIcloudCache
+                    [self.icloudIdentifiers addObject:assetId];
+#endif
                     [icloudList addObject:assetId];
                 }
-                
-//                [self.icloudQueryedIdentifiers addObject:assetId];
+#if QueryIcloudCache
+                [self.icloudQueryedIdentifiers addObject:assetId];
+#endif
             }
             if([(NSObject *)self.icloudQueryDelegate respondsToSelector:@selector(qhpPhotoKitHelper:querySet:icloudSet:)]) {
                 [self.icloudQueryDelegate qhpPhotoKitHelper:self querySet:identifiers icloudSet:icloudList];
@@ -371,14 +358,16 @@ static QHPPhotoKitHelper* instance = nil;
 -(void) queryIcloudAssetAllItem
 {
     dispatch_async(_iCloudQueryQueue, ^{
+#if QueryIcloudCache
         if (self.icloudIdentifiers == nil) {
             self.icloudIdentifiers = [[NSMutableSet alloc] init];
         }
-        
+
         //这里已经查过的就不要再查了
         if (self.icloudQueryedIdentifiers == nil) {
             self.icloudQueryedIdentifiers = [[NSMutableSet alloc] init];
         }
+#endif
         
         NSArray* identifiers = [self.queryIcloudList mutableCopy];
         @autoreleasepool {
@@ -389,15 +378,21 @@ static QHPPhotoKitHelper* instance = nil;
             for (NSInteger i=0; i< identifiers.count; i++) {
                 NSString *assetId = [identifiers objectAtIndex:i];
                 //这里已经查过的就不要再查了
+#if QueryIcloudCache
                 if ([self.icloudQueryedIdentifiers containsObject:assetId]) {
                     continue;
                 }
+#endif
                 AVAsset *resultAsset = [self requestAVAssetWithLocalIdentifier:assetId];
                 if (resultAsset == nil) {
+#if QueryIcloudCache
                     [self.icloudIdentifiers addObject:assetId];
+#endif
                     [icloudList addObject:assetId];
                 }
+#if QueryIcloudCache
                 [self.icloudQueryedIdentifiers addObject:assetId];
+#endif
             }
             if([(NSObject *)self.icloudQueryDelegate respondsToSelector:@selector(qhpPhotoKitHelper:querySet:icloudSet:)]) {
                 [self.icloudQueryDelegate qhpPhotoKitHelper:self querySet:identifiers icloudSet:icloudList];
@@ -415,6 +410,65 @@ static QHPPhotoKitHelper* instance = nil;
 }
 
 #pragma mark ================   private Methods    ================
+#pragma mark - 任务的管理
+// 把任务加入到queue并开始执行
+-(void) addNewIcloudTask2Queue:(PHAsset *)asset{
+    DECLARE_WEAK_SELF
+    QHPIcloudOperation* operation = [[QHPIcloudOperation alloc] initWithIdentifier:asset.localIdentifier phImageManager:_mediaManager asset:asset progressBlock:^(NSString *identifier, double progress, NSDictionary * _Nullable info) {
+        DECLARE_STRONG_SELF
+        if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:progressWithIdentifier:progress:info:)]){
+            [strongSelf.delegate qhpPhotoKitHelper:strongSelf progressWithIdentifier:identifier progress:progress info:info];
+        }
+    } completeBlock:^(NSString *identifier, AVAsset * _Nullable aVAsset, AVAudioMix * _Nullable audioMix, NSDictionary * _Nullable info) {
+        DECLARE_STRONG_SELF
+        [strongSelf dealWithCompleteWithIdentifier:identifier avAsset:aVAsset];
+        if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:completeWithIdentifier:aVAsset:avAudioMix:info:)]){
+            [strongSelf.delegate qhpPhotoKitHelper:strongSelf completeWithIdentifier:identifier aVAsset:aVAsset avAudioMix:audioMix info:info];
+        }
+    } errorBlock:^(NSString *identifier, NSError * _Nullable error, NSDictionary *__nullable info) {
+        DECLARE_STRONG_SELF
+        [strongSelf dealWithErrorWithIdentifier:identifier];
+        if([error.domain isEqualToString:kIcloudOperationDomain] && (error.code == QHPIcloudOperationCancel)) {
+            if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:cancelWithIdentifier:error:)]){
+                [strongSelf.delegate qhpPhotoKitHelper:strongSelf cancelWithIdentifier:identifier error:error];
+            }
+        } else {
+            if(strongSelf.delegate && [(NSObject *)strongSelf.delegate respondsToSelector:@selector(qhpPhotoKitHelper:failWithIdentifier:error:info:)]){
+                [strongSelf.delegate qhpPhotoKitHelper:strongSelf failWithIdentifier:identifier error:error info:info];
+            }
+        }
+    }];
+    [self taskCacheAddWithIdentifier:operation.identifier qhpIcoudOperation:operation];
+    [self.queue addOperation:operation];
+    
+#if KVOOperationTest
+    [operation addObserver:self forKeyPath:@"cancelled" options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
+    [operation addObserver:self forKeyPath:@"executing" options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
+    [operation addObserver:self forKeyPath:@"finished" options:NSKeyValueObservingOptionNew|NSKeyValueObservingOptionOld context:nil];
+#endif
+}
+
+// 根据当前的状况来判断
+-(void) addIcloudTask:(PHAsset *)asset{
+    dispatch_async(_cacheQueue, ^{
+        if(self.taskCache.count < kMaxConcurrent) {
+            [self addNewIcloudTask2Queue:asset];
+        } else {
+            [self.waitTaskCache addObject:asset];
+        }
+    });
+}
+
+-(void) checkNeedPushWaitingTask{
+    dispatch_async(_cacheQueue, ^{
+        if(self.waitTaskCache.count){
+            PHAsset *asset = [self.waitTaskCache lastObject];
+            [self addNewIcloudTask2Queue:asset];
+            [self.waitTaskCache removeObject:asset];
+        }
+    });
+}
+
 #pragma mark - 缓存处理 taskCache && aVAssetCache
 -(BOOL) taskCacheContains:(NSString *) identifier{
     __block BOOL contains = NO;
@@ -439,37 +493,43 @@ static QHPPhotoKitHelper* instance = nil;
     });
 }
 
--(BOOL) avCacheContains:(NSString *) identifier{
-    __block BOOL contains = NO;
-    dispatch_async(_cacheQueue, ^{
-        NSArray* keyArray = [self.aVAssetCache allKeys];
-        contains = [keyArray containsObject:identifier];
-    });
-    return contains;
-}
-
--(void) avCacheAddWithIdentifier:(NSString *) identifier aVAsset:(AVAsset *) aVAsset{
-    if([self  avCacheContains:identifier]) {
-        dispatch_async(_cacheQueue, ^{
-            [self.aVAssetCache removeObjectForKey:identifier];
-        });
-    }
-    dispatch_async(_cacheQueue, ^{
-        [self.aVAssetCache setObject:aVAsset forKey:identifier];
-    });
-}
+//-(BOOL) avCacheContains:(NSString *) identifier{
+//    __block BOOL contains = NO;
+//    dispatch_async(_cacheQueue, ^{
+//        NSArray* keyArray = [self.aVAssetCache allKeys];
+//        contains = [keyArray containsObject:identifier];
+//    });
+//    return contains;
+//}
+//
+//-(void) avCacheAddWithIdentifier:(NSString *) identifier aVAsset:(AVAsset *) aVAsset{
+//    if([self  avCacheContains:identifier]) {
+//        dispatch_async(_cacheQueue, ^{
+//            [self.aVAssetCache removeObjectForKey:identifier];
+//        });
+//    }
+//    dispatch_async(_cacheQueue, ^{
+//        [self.aVAssetCache setObject:aVAsset forKey:identifier];
+//    });
+//}
 
 
 // 如果下载成功改变标志位 移除任务
 -(void) dealWithErrorWithIdentifier:(NSString *) identifier{
     [self taskCacheRemove:identifier];
+    [self checkNeedPushWaitingTask];
+#if QueryIcloudCache
     [self updateCloudCacheWithIdentifier:identifier isCloud:YES];
+#endif
 }
 
 -(void) dealWithCompleteWithIdentifier:(NSString *) identifier avAsset:(AVAsset *)aVAsset{
     [self taskCacheRemove:identifier];
-    [self avCacheAddWithIdentifier:identifier aVAsset:aVAsset];
+    [self checkNeedPushWaitingTask];
+//    [self avCacheAddWithIdentifier:identifier aVAsset:aVAsset];
+#if QueryIcloudCache
     [self updateCloudCacheWithIdentifier:identifier isCloud:NO];
+#endif
 }
 
 // 改变icloud的缓存
@@ -499,15 +559,16 @@ static QHPPhotoKitHelper* instance = nil;
 -(void) dealWithChangeArray:(NSArray<PHAsset *> *) changeList changeType:(PhotoKitChangsType) type{
     dispatch_async(_cacheQueue, ^{
         for(PHAsset* asset in changeList) {
-            if([self avCacheContains:asset.localIdentifier]) {
-                [self.aVAssetCache removeObjectForKey:asset.localIdentifier];
-            }
+//            if([self avCacheContains:asset.localIdentifier]) {
+//                [self.aVAssetCache removeObjectForKey:asset.localIdentifier];
+//            }
             if(type == PhotoKitTypeInsert) {
                 //如果是增加的话
                 if(![self.queryIcloudList containsObject:asset.localIdentifier]){
                     [self.queryIcloudList addObject:asset.localIdentifier];
                 }
             } else {
+#if QueryIcloudCache
                 // 去掉icloud
                 if([self.icloudQueryedIdentifiers containsObject:asset.localIdentifier]) {
                     [self.icloudQueryedIdentifiers removeObject:asset.localIdentifier];
@@ -516,6 +577,7 @@ static QHPPhotoKitHelper* instance = nil;
                 if([self.icloudIdentifiers containsObject:asset.localIdentifier]) {
                     [self.icloudIdentifiers removeObject:asset.localIdentifier];
                 }
+#endif
             }
         }
     });
@@ -525,9 +587,11 @@ static QHPPhotoKitHelper* instance = nil;
 -(void) resetCachedAssets{
     dispatch_async(_cacheQueue, ^{
         self.taskCache = [[NSMutableDictionary alloc] init];
-        self.aVAssetCache = [[NSMutableDictionary alloc] init];
+//        self.aVAssetCache = [[NSMutableDictionary alloc] init];
+#if QueryIcloudCache
         [self.icloudIdentifiers removeAllObjects];
         [self.icloudQueryedIdentifiers removeAllObjects];
+#endif
         [self.queryIcloudList removeAllObjects];
     });
 }
@@ -556,8 +620,10 @@ static QHPPhotoKitHelper* instance = nil;
     }
 }
 
-//#pragma mark - KVO For Test
-//-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context{
-//    NSLog(@"%@监听到%@属性的改变为%@",object,keyPath,change);
-//}
+#pragma mark - KVO For Test
+#if KVOOperationTest
+-(void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSKeyValueChangeKey,id> *)change context:(void *)context{
+    NSLog(@"%@监听到%@属性的改变为%@",object,keyPath,change);
+}
+#endif
 @end

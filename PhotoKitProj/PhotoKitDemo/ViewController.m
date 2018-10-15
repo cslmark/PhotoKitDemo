@@ -16,7 +16,7 @@
 #import "QHPCGRectTool.h"
 #import "QHPIcloudPrePlayerView.h"
 
-@interface ViewController ()<UICollectionViewDelegate, UICollectionViewDataSource, QHOPhotoLibraryHandlerDelegate, UIGestureRecognizerDelegate, QHPPhotoKitChangeDelegate, QHPPhotoKitHelperDelegate>
+@interface ViewController ()<UICollectionViewDelegate, UICollectionViewDataSource, QHOPhotoLibraryHandlerDelegate, UIGestureRecognizerDelegate, QHPPhotoKitChangeDelegate, QHPPhotoKitHelperDelegate, QHPPhotoKitIcloudQueryDelegate>
 {
     CGFloat _itemW;
     CGSize _itemSize;
@@ -53,6 +53,7 @@
     _videoFetchResult = [[QHPPhotoKitHelper shareInstance] videoFetchResult];
     [QHPPhotoKitHelper shareInstance].delegate = self;
     [QHPPhotoKitHelper shareInstance].changeDelegate = self;
+    [QHPPhotoKitHelper shareInstance].icloudQueryDelegate = self;
     
     
     [self setupDataSource];
@@ -108,6 +109,7 @@
     [self updateDataSource];
     [self resetCachedAssets];
     [self updateCachedAssets];
+    [self updateCurrentIcloudFlag];
 }
 
 
@@ -255,7 +257,7 @@
         return;
     }
     self.currentIdentifier = data.localIdentifier;
-    
+//    if(self.viewLoaded)
     [self beforeDownLoadwith:data];
     [[QHPPhotoKitHelper shareInstance] requestAVAssetForVideoWith:data.asset.localIdentifier];
 }
@@ -391,6 +393,7 @@
 #pragma mark QHPPhotoKitChangeDelegate
 -(void) qhpPhotoKitHelper:(QHPPhotoKitHelper *) helper phChangeDetail:(PHFetchResultChangeDetails *)changes{
     [NSOperationQueue.mainQueue addOperationWithBlock:^{
+        NSLog(@"当前相册状态发生了改变============================================");
         self.videoFetchResult = helper.videoFetchResult;
         [self setupDataSource];
         if(changes.hasIncrementalChanges) {
@@ -443,7 +446,7 @@
 
 // Notice: Only for old.height == new.height
 // Others is array no a rect
-void differencesBetweenRects(CGRect old, CGRect new, CGRect* addR, CGRect* removeR, int *len){
+void differencesBetweenRects(CGRect old, CGRect new, CGRect addRect[], CGRect removeRect[], int *len){
     if(CGRectIntersectsRect(old, new)) {
         CGRect addRect[2] = {CGRectZero, CGRectZero}, removeRect[2] = {CGRectZero, CGRectZero};
         if(QHPCGRectTool.maxY(new) > QHPCGRectTool.maxY(old)) {
@@ -462,15 +465,11 @@ void differencesBetweenRects(CGRect old, CGRect new, CGRect* addR, CGRect* remov
             CGFloat d = QHPCGRectTool.minY(new) - QHPCGRectTool.minY(old);
             removeRect[1] = CGRectMake(new.origin.x, QHPCGRectTool.maxY(new),new.size.width, d);
         }
-        addR = addRect;
-        removeR = removeRect;
         *len = 2;
     } else {
         CGRect addRect[1] = {CGRectZero}, removeRect[1] = {CGRectZero};
         addRect[0] = new;
         removeRect[0] = old;
-        addR = addRect;
-        removeR = removeRect;
         *len = 1;
     }
 }
@@ -494,29 +493,33 @@ void differencesBetweenRects(CGRect old, CGRect new, CGRect* addR, CGRect* remov
     CGRect visibleRect = {self.collectionView.contentOffset, self.collectionView.bounds.size};
     CGFloat dy = 0.5 * visibleRect.size.height;
     CGRect preheatRect = CGRectMake(visibleRect.origin.x, visibleRect.origin.y - dy , visibleRect.size.width, visibleRect.size.height + 2*dy);
-    CGFloat preheatMidY = QHPCGRectTool.midY(preheatRect);
-    CGFloat previousMidY = QHPCGRectTool.midY(self.previousPreheatRect);
-    CGFloat delta = fabs(preheatMidY - previousMidY);
-    if(delta > self.collectionView.bounds.size.height / 3) {
-        return;
-    }
+//    CGFloat preheatMidY = QHPCGRectTool.midY(preheatRect);
+//    CGFloat previousMidY = QHPCGRectTool.midY(self.previousPreheatRect);
+    // 去掉这层限制
+//    CGFloat delta = fabs(preheatMidY - previousMidY);
+//    if(delta > self.collectionView.bounds.size.height / 3) {
+//        return;
+//    }
     
-    CGRect* addRect = NULL, * removeRect = NULL;
-    int *len = 0;
-    differencesBetweenRects(self.previousPreheatRect, preheatRect, addRect, removeRect, len);
+//    CGRect* addRect = NULL, * removeRect = NULL;
+    int len = 0;
+    CGRect addRect[2] = {CGRectZero, CGRectZero}, removeRect[2] = {CGRectZero, CGRectZero};
+    differencesBetweenRects(self.previousPreheatRect, preheatRect, addRect, removeRect, &len);
     NSMutableArray* addSet = [[NSMutableArray alloc] initWithCapacity:1];
-    for(NSInteger i = 0; i < *len; i++){
+    NSMutableArray* addIndentifiers = [NSMutableArray arrayWithCapacity:1];
+    for(NSInteger i = 0; i < len; i++){
         CGRect rect = addRect[i];
         NSArray* indexPathList = [self indexPathsInRect:rect];
         for(NSInteger j = 0; j < indexPathList.count; j++) {
             NSIndexPath* indexPath = indexPathList[j];
             CellData* data = self.cellDataSource[indexPath.row];
             [addSet addObject:data.asset];
+            [addIndentifiers addObject:data.localIdentifier];
         }
     }
     
     NSMutableArray* removeSet = [[NSMutableArray alloc] initWithCapacity:1];
-    for(NSInteger i = 0; i < *len; i++){
+    for(NSInteger i = 0; i < len; i++){
         CGRect rect = removeRect[i];
         NSArray* indexPathList = [self indexPathsInRect:rect];
         for(NSInteger j = 0; j < indexPathList.count; j++) {
@@ -528,12 +531,74 @@ void differencesBetweenRects(CGRect old, CGRect new, CGRect* addR, CGRect* remov
     
     [[QHPPhotoKitHelper shareInstance] startCachingImagesForAssets:addSet targetSize:_itemSize];
     [[QHPPhotoKitHelper shareInstance] stopCachingImagesForAssets:removeSet targetSize:_itemSize];
+    [[QHPPhotoKitHelper shareInstance] queryIcloudAssetItemWithIdentifiers:addIndentifiers];
+}
+
+-(void) updateCurrentIcloudFlag{
+    CGRect visibleRect = {self.collectionView.contentOffset, self.collectionView.bounds.size};
+    NSArray* indexPathList = [self indexPathsInRect:visibleRect];
+    NSMutableArray* addIndentifiers = [NSMutableArray arrayWithCapacity:1];
+    for(NSInteger j = 0; j < indexPathList.count; j++) {
+        NSIndexPath* indexPath = indexPathList[j];
+        CellData* data = self.cellDataSource[indexPath.row];
+        [addIndentifiers addObject:data.localIdentifier];
+    }
+    [[QHPPhotoKitHelper shareInstance] queryIcloudAssetItemWithIdentifiers:addIndentifiers];
 }
 
 #pragma mark - ScrollerDelegate
--(void) scrollViewDidScroll:(UIScrollView *)scrollView{
-    [self updateDataSource];
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+    // 停止类型1、停止类型2
+    BOOL scrollToScrollStop = !scrollView.tracking && !scrollView.dragging && !scrollView.decelerating;
+    if (scrollToScrollStop) {
+        [self scrollViewDidEndScroll];
+    }
 }
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+    if (!decelerate) {
+        // 停止类型3
+        BOOL dragToDragStop = scrollView.tracking && !scrollView.dragging && !scrollView.decelerating;
+        if (dragToDragStop) {
+            [self scrollViewDidEndScroll];
+        }
+    }
+}
+#pragma mark - scrollView 滚动停止
+- (void)scrollViewDidEndScroll {
+    NSLog(@"停止滚动了！！！");
+    [self updateCurrentIcloudFlag];
+}
+
+//-(void) scrollViewDidScroll:(UIScrollView *)scrollView{
+//    NSLog(@"调用了 ==========================  scrollViewDidScroll  [%@]", @(scrollView.decelerating));
+////    [self updateCachedAssets];
+//}
+//
+//-(void) scrollViewDidEndDecelerating:(UIScrollView *)scrollView{
+//    NSLog(@"调用了 ==========================  scrollViewDidEndDecelerating  <<<<<>>>>>>>>>>>>");
+////    [self updateCachedAssets];
+//}
+//-(void) scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView{
+//    NSLog(@"调用了 ==========================  scrollViewDidEndScrollingAnimation  <<<<<>>>>>>>>>>>>");
+//    [self updateCachedAssets];
+//}
+
+#pragma mark - QHPPhotoKitIcloudQueryDelegate
+-(void) qhpPhotoKitHelper:(QHPPhotoKitHelper *) helper querySet:(NSArray <NSString *>*) queryList icloudSet:(NSArray <NSString *>*) icloudList{
+    [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+        for(NSInteger i = 0; i < queryList.count; i++){
+            NSString* tempIdentifier = queryList[i];
+            CellData* data = [self getCellDataWith:tempIdentifier];
+            if([icloudList containsObject:tempIdentifier]) {
+                data.cellType = PHAssetCellTypeIcloud;
+            } else {
+                data.cellType = PHAssetCellTypeLocal;
+            }
+            [self dealWithCellUpdate:data];
+        }
+    }];
+}
+
 
 // login内容
 /*

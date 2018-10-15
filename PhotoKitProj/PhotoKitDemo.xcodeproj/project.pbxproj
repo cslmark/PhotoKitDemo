@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		6B4E4B9D217399D300FEB327 /* QHPIcoudProgress.m in Sources */ = {isa = PBXBuildFile; fileRef = 6B4E4B9C217399D300FEB327 /* QHPIcoudProgress.m */; };
+		6B4E4BA021739F1100FEB327 /* FirsthViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 6B4E4B9F21739F1100FEB327 /* FirsthViewController.m */; };
 		85C44484216E46480018B293 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 85C44483216E46480018B293 /* AppDelegate.m */; };
 		85C4448A216E46480018B293 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 85C44488216E46480018B293 /* Main.storyboard */; };
 		85C4448C216E46490018B293 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 85C4448B216E46490018B293 /* Assets.xcassets */; };
@@ -56,6 +58,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		6B4E4B9B217399D300FEB327 /* QHPIcoudProgress.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = QHPIcoudProgress.h; sourceTree = "<group>"; };
+		6B4E4B9C217399D300FEB327 /* QHPIcoudProgress.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = QHPIcoudProgress.m; sourceTree = "<group>"; };
+		6B4E4B9E21739F1100FEB327 /* FirsthViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = FirsthViewController.h; sourceTree = "<group>"; };
+		6B4E4B9F21739F1100FEB327 /* FirsthViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = FirsthViewController.m; sourceTree = "<group>"; };
 		85C4447F216E46480018B293 /* PhotoKitDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoKitDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		85C44482216E46480018B293 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		85C44483216E46480018B293 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
@@ -183,6 +189,10 @@
 				85C4448D216E46490018B293 /* LaunchScreen.storyboard */,
 				85C44490216E46490018B293 /* Info.plist */,
 				85C44491216E46490018B293 /* main.m */,
+				6B4E4B9B217399D300FEB327 /* QHPIcoudProgress.h */,
+				6B4E4B9C217399D300FEB327 /* QHPIcoudProgress.m */,
+				6B4E4B9E21739F1100FEB327 /* FirsthViewController.h */,
+				6B4E4B9F21739F1100FEB327 /* FirsthViewController.m */,
 			);
 			path = PhotoKitDemo;
 			sourceTree = "<group>";
@@ -216,7 +226,6 @@
 				85C444DB216E469C0018B293 /* QHPDownLoadCircleProgress.h */,
 				85C444DC216E469C0018B293 /* CSLMediaManager.h */,
 				85C444DD216E469C0018B293 /* Icloud */,
-				85C444E8216E469C0018B293 /* ICloudKit */,
 			);
 			path = Classes;
 			sourceTree = "<group>";
@@ -292,21 +301,6 @@
 				85C444E7216E469C0018B293 /* QHPCGRectTool.m */,
 			);
 			path = Tool;
-			sourceTree = "<group>";
-		};
-		85C444E8216E469C0018B293 /* ICloudKit */ = {
-			isa = PBXGroup;
-			children = (
-				85C444E9216E469C0018B293 /* ICloudOperation */,
-			);
-			path = ICloudKit;
-			sourceTree = "<group>";
-		};
-		85C444E9216E469C0018B293 /* ICloudOperation */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = ICloudOperation;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -443,11 +437,13 @@
 			files = (
 				85C444B6216E46890018B293 /* ViewController.m in Sources */,
 				85C444FB216E469C0018B293 /* QHPIcloudOperation.m in Sources */,
+				6B4E4B9D217399D300FEB327 /* QHPIcoudProgress.m in Sources */,
 				85C444F8216E469C0018B293 /* UIButton+TouchArea.m in Sources */,
 				85C444F9216E469C0018B293 /* QHPPhotoKitHelper.m in Sources */,
 				85C44492216E46490018B293 /* main.m in Sources */,
 				85C444F0216E469C0018B293 /* MASLayoutConstraint.m in Sources */,
 				85C444EB216E469C0018B293 /* CSLMediaManager.m in Sources */,
+				6B4E4BA021739F1100FEB327 /* FirsthViewController.m in Sources */,
 				85C444FC216E469C0018B293 /* QHPCGRectTool.m in Sources */,
 				85C444EA216E469C0018B293 /* QHPDownLoadCircleProgress.m in Sources */,
 				85C444F5216E469C0018B293 /* MASViewAttribute.m in Sources */,

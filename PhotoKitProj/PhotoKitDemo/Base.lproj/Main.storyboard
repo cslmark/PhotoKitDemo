@@ -10,10 +10,10 @@
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
-        <!--View Controller-->
+        <!--Firsth View Controller-->
         <scene sceneID="QXq-I0-KwK">
             <objects>
-                <viewController id="5er-iV-Hs2" sceneMemberID="viewController">
+                <viewController storyboardIdentifier="FirsthViewController" id="5er-iV-Hs2" customClass="FirsthViewController" sceneMemberID="viewController">
                     <view key="view" contentMode="scaleToFill" id="FgP-kv-BUV">
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
@@ -25,19 +25,42 @@
                                     <segue destination="fhn-DU-N9p" kind="show" id="msE-Ix-fcC"/>
                                 </connections>
                             </button>
+                            <textField opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" textAlignment="natural" minimumFontSize="17" translatesAutoresizingMaskIntoConstraints="NO" id="b4L-wv-OVx">
+                                <rect key="frame" x="23" y="257" width="100" height="30"/>
+                                <constraints>
+                                    <constraint firstAttribute="width" constant="100" id="cTb-w8-h1F"/>
+                                </constraints>
+                                <nil key="textColor"/>
+                                <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                                <textInputTraits key="textInputTraits"/>
+                            </textField>
+                            <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="50c-D4-uDH">
+                                <rect key="frame" x="283" y="257" width="62" height="30"/>
+                                <state key="normal" title="开始设置"/>
+                                <connections>
+                                    <action selector="starSetClick:" destination="5er-iV-Hs2" eventType="touchUpInside" id="Sif-hY-x0f"/>
+                                </connections>
+                            </button>
                         </subviews>
-                        <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                        <color key="backgroundColor" red="1" green="0.45917968749999999" blue="1" alpha="1" colorSpace="calibratedRGB"/>
                         <constraints>
                             <constraint firstItem="tOh-an-T0V" firstAttribute="centerX" secondItem="FgP-kv-BUV" secondAttribute="centerX" id="4CF-Uc-t2f"/>
+                            <constraint firstItem="t8J-ie-fON" firstAttribute="trailing" secondItem="50c-D4-uDH" secondAttribute="trailing" constant="30" id="DEW-Am-6Ue"/>
+                            <constraint firstItem="tOh-an-T0V" firstAttribute="top" secondItem="50c-D4-uDH" secondAttribute="bottom" constant="31" id="ZaO-nh-r2r"/>
+                            <constraint firstItem="b4L-wv-OVx" firstAttribute="leading" secondItem="t8J-ie-fON" secondAttribute="leading" constant="23" id="iBt-Rg-R85"/>
+                            <constraint firstItem="tOh-an-T0V" firstAttribute="top" secondItem="b4L-wv-OVx" secondAttribute="bottom" constant="31" id="ogw-8X-1gb"/>
                             <constraint firstItem="tOh-an-T0V" firstAttribute="centerY" secondItem="FgP-kv-BUV" secondAttribute="centerY" id="pUz-HM-q8Y"/>
                         </constraints>
                         <viewLayoutGuide key="safeArea" id="t8J-ie-fON"/>
                     </view>
                     <navigationItem key="navigationItem" id="iZo-qw-ZVb"/>
+                    <connections>
+                        <outlet property="inputView" destination="b4L-wv-OVx" id="u7B-xj-bPO"/>
+                    </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="Fph-Ec-lbV" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="342" y="125"/>
+            <point key="canvasLocation" x="341.60000000000002" y="124.58770614692655"/>
         </scene>
         <!--View Controller-->
         <scene sceneID="Zib-CC-P7F">
